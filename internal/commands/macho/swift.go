@@ -107,9 +107,11 @@ func (s *Swift) DumpType(pattern string) error {
 		}
 
 		toc := m.GetSwiftTOC()
+		log.Debugf("Starting PreCache for %s", s.conf.Name)
 		if err := m.PreCache(); err != nil { // cache fields and types
 			log.Errorf("failed to precache swift fields/types: %v", err)
 		}
+		log.Debugf("Completed PreCache for %s", s.conf.Name)
 
 		typs, err := m.GetSwiftTypes()
 		if err != nil {
@@ -677,8 +679,13 @@ func (s *Swift) WriteHeaders() error {
 		}
 
 		/* generate Swift type headers */
+		log.Debugf("Getting Swift types for %s", s.conf.Name)
 		if types, err := m.GetSwiftTypes(); err == nil {
-			for _, typ := range types {
+			log.Debugf("Found %d types for %s, generating headers", len(types), s.conf.Name)
+			for idx, typ := range types {
+				if idx%200 == 0 && idx > 0 {
+					log.Debugf("Processed %d/%d types for %s", idx, len(types), s.conf.Name)
+				}
 				var sout string
 				if s.conf.Verbose {
 					sout = typ.Verbose()
@@ -716,7 +723,9 @@ func (s *Swift) WriteHeaders() error {
 		}
 
 		/* generate Swift protocol headers */
+		log.Debugf("Getting Swift protocols for %s", s.conf.Name)
 		if protos, err := m.GetSwiftProtocols(); err == nil {
+			log.Debugf("Found %d protocols for %s, generating headers", len(protos), s.conf.Name)
 			for _, proto := range protos {
 				var sout string
 				if s.conf.Verbose {
@@ -755,8 +764,13 @@ func (s *Swift) WriteHeaders() error {
 		}
 
 		/* generate Swift extension headers */
+		log.Debugf("Getting Swift protocol conformances for %s", s.conf.Name)
 		if exts, err := m.GetSwiftProtocolConformances(); err == nil {
-			for _, ext := range exts {
+			log.Debugf("Found %d protocol conformances for %s, generating headers", len(exts), s.conf.Name)
+			for idx, ext := range exts {
+				if idx%100 == 0 && idx > 0 {
+					log.Debugf("Processed %d/%d protocol conformances for %s", idx, len(exts), s.conf.Name)
+				}
 				var sout string
 				if s.conf.Verbose {
 					sout = ext.Verbose()
@@ -794,7 +808,9 @@ func (s *Swift) WriteHeaders() error {
 		}
 
 		/* generate Swift associated type headers */
+		log.Debugf("Getting Swift associated types for %s", s.conf.Name)
 		if asstyps, err := m.GetSwiftAssociatedTypes(); err == nil {
+			log.Debugf("Found %d associated types for %s, generating headers", len(asstyps), s.conf.Name)
 			for _, at := range asstyps {
 				var sout string
 				if s.conf.Verbose {

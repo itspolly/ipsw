@@ -217,6 +217,7 @@ var swiftDumpCmd = &cobra.Command{
 			defer f.Close()
 
 			if viper.GetBool("swift-dump.all") {
+				log.Infof("Processing %d total images from DSC", len(images))
 				images = f.Images
 			} else {
 				img, err := f.Image(args[1])
@@ -227,6 +228,7 @@ var swiftDumpCmd = &cobra.Command{
 			}
 
 			for idx, image := range images {
+				log.Debugf("Processing image %d/%d: %s", idx+1, len(images), filepath.Base(image.Name))
 				m, err = image.GetMacho()
 				if err != nil {
 					log.Errorf("Failed to parse MachO from dylib '%s': %v - CONTINUING", filepath.Base(image.Name), err)
@@ -345,7 +347,9 @@ var swiftDumpCmd = &cobra.Command{
 					runtime.GC()
 					log.Debugf("Processed %d/%d images (GC triggered)", idx+1, len(images))
 				}
+				log.Debugf("Completed processing image %d/%d: %s", idx+1, len(images), filepath.Base(image.Name))
 			}
+			log.Infof("Completed processing all %d images", len(images))
 		}
 
 		return nil
