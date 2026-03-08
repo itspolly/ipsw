@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/alecthomas/chroma/v2/styles"
@@ -218,7 +219,7 @@ var swiftDumpCmd = &cobra.Command{
 				images = append(images, img)
 			}
 
-			for _, image := range images {
+			for idx, image := range images {
 				m, err = image.GetMacho()
 				if err != nil {
 					return fmt.Errorf("failed to parse MachO from dylib '%s': %v", filepath.Base(image.Name), err)
@@ -248,49 +249,85 @@ var swiftDumpCmd = &cobra.Command{
 
 				s, err = mcmd.NewSwift(m, f, &conf)
 				if err != nil {
+					image.ClearMachoCache() // cleanup before continue
+					m = nil
 					return err
 				}
 
 				if viper.GetBool("swift-dump.interface") {
 					if err := s.Interface(); err != nil {
+						image.ClearMachoCache() // cleanup before error return
+						m = nil
+						s = nil
 						return err
 					}
 				}
 
 				if viper.GetString("swift-dump.type") != "" {
 					if err := s.DumpType(viper.GetString("swift-dump.type")); err != nil {
+						image.ClearMachoCache() // cleanup before error return
+						m = nil
+						s = nil
 						return err
 					}
 				}
 
 				if viper.GetString("swift-dump.proto") != "" {
 					if err := s.DumpProtocol(viper.GetString("swift-dump.proto")); err != nil {
+						image.ClearMachoCache() // cleanup before error return
+						m = nil
+						s = nil
 						return err
 					}
 				}
 
 				if viper.GetString("swift-dump.ext") != "" {
 					if err := s.DumpExtension(viper.GetString("swift-dump.ext")); err != nil {
+						image.ClearMachoCache() // cleanup before error return
+						m = nil
+						s = nil
 						return err
 					}
 				}
 
 				if viper.GetString("swift-dump.ass") != "" {
 					if err := s.DumpAssociatedType(viper.GetString("swift-dump.ass")); err != nil {
+						image.ClearMachoCache() // cleanup before error return
+						m = nil
+						s = nil
 						return err
 					}
 				}
 
 				if viper.GetBool("swift-dump.headers") {
 					if err := s.WriteHeaders(); err != nil {
+						image.ClearMachoCache() // cleanup before error return
+						m = nil
+						s = nil
 						return err
 					}
 				}
 
 				if doDump {
 					if err := s.Dump(); err != nil {
+						image.ClearMachoCache() // cleanup before error return
+						m = nil
+						s = nil
 						return fmt.Errorf("failed to dump Swift info for dylib '%s': %v", filepath.Base(image.Name), err)
 					}
+				}
+
+				// Cleanup after processing each image to free memory
+				if err := image.ClearMachoCache(); err != nil {
+					log.Warnf("Failed to clear macho cache for '%s': %v", filepath.Base(image.Name), err)
+				}
+				m = nil
+				s = nil
+
+				// Force garbage collection every 10 images to prevent OOM
+				if (idx+1)%10 == 0 {
+					runtime.GC()
+					log.Debugf("Processed %d/%d images (GC triggered)", idx+1, len(images))
 				}
 			}
 		}

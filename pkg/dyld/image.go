@@ -481,6 +481,23 @@ func (i *CacheImage) GetMacho() (*macho.File, error) {
 	return i.m, nil
 }
 
+// ClearMachoCache closes and clears the cached MachO file to free memory
+func (i *CacheImage) ClearMachoCache() error {
+	if i.m != nil {
+		if err := i.m.Close(); err != nil {
+			return err
+		}
+		i.m = nil
+	}
+	if i.pm != nil {
+		if err := i.pm.Close(); err != nil {
+			return err
+		}
+		i.pm = nil
+	}
+	return nil
+}
+
 // GetPartialMacho parses dyld image as a partial MachO (fast)
 func (i *CacheImage) GetPartialMacho() (*macho.File, error) {
 	if i.pm != nil {
