@@ -229,7 +229,8 @@ var swiftDumpCmd = &cobra.Command{
 			for idx, image := range images {
 				m, err = image.GetMacho()
 				if err != nil {
-					return fmt.Errorf("failed to parse MachO from dylib '%s': %v", filepath.Base(image.Name), err)
+					log.Errorf("Failed to parse MachO from dylib '%s': %v - CONTINUING", filepath.Base(image.Name), err)
+					continue // Don't fail the entire operation, just skip this image
 				}
 
 				image.ParseLocalSymbols(false) // parse local symbols for swift demangling
