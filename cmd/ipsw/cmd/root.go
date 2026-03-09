@@ -23,6 +23,7 @@ package cmd
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -65,6 +66,15 @@ var rootCmd = &cobra.Command{
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		if viper.GetBool("verbose") {
 			log.SetLevel(log.DebugLevel)
+			// Enable debug logging for go-macho
+			slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+				Level: slog.LevelDebug,
+			})))
+		} else {
+			// Enable warning logging for go-macho
+			slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+				Level: slog.LevelWarn,
+			})))
 		}
 		color.NoColor = viper.GetBool("no-color")
 	},
