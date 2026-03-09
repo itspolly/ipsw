@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/alecthomas/chroma/v2/styles"
@@ -243,9 +244,11 @@ var classDumpCmd = &cobra.Command{
 				images = append(images, img)
 			}
 
-			for _, img := range images {
+			for idx, img := range images {
 				m, err = img.GetMacho()
 				if err != nil {
+					img.ClearMachoCache() // cleanup before continue
+					m = nil
 					return fmt.Errorf("failed to parse MachO from dylib '%s': %v", filepath.Base(img.Name), err)
 				}
 
@@ -261,12 +264,18 @@ var classDumpCmd = &cobra.Command{
 						log.WithError(err).Warnf("failed to create ObjC parser for dylib '%s'", filepath.Base(img.Name))
 						continue
 					}
+					img.ClearMachoCache() // cleanup before error return
+					m = nil
+					o = nil
 					return fmt.Errorf("failed to create ObjC parser for dylib '%s': %v", filepath.Base(img.Name), err)
 				}
 
 				if viper.GetBool("class-dump.headers") {
 					log.WithField("dylib", filepath.Base(img.Name)).Info("Dumping ObjC headers")
 					if err := o.Headers(); err != nil {
+						img.ClearMachoCache() // cleanup before error return
+						m = nil
+						o = nil
 						return fmt.Errorf("failed to dump headers for dylib '%s': %v", filepath.Base(img.Name), err)
 					}
 					continue
@@ -274,38 +283,69 @@ var classDumpCmd = &cobra.Command{
 
 				if viper.GetBool("class-dump.xcfw") {
 					if err := o.XCFramework(); err != nil {
+						img.ClearMachoCache() // cleanup before error return
+						m = nil
+						o = nil
 						return fmt.Errorf("failed to generate XCFramework for dylib '%s': %v", filepath.Base(img.Name), err)
 					}
 				}
 
 				if viper.GetBool("class-dump.spm") {
 					if err := o.SwiftPackage(); err != nil {
+						img.ClearMachoCache() // cleanup before error return
+						m = nil
+						o = nil
 						return fmt.Errorf("failed to generate Swift Package for dylib '%s': %v", filepath.Base(img.Name), err)
 					}
 				}
 
 				if viper.GetString("class-dump.class") != "" {
 					if err := o.DumpClass(viper.GetString("class-dump.class")); err != nil {
+						img.ClearMachoCache() // cleanup before error return
+						m = nil
+						o = nil
 						return fmt.Errorf("failed to dump class '%s' from dylib '%s': %v", viper.GetString("class-dump.class"), filepath.Base(img.Name), err)
 					}
 				}
 
 				if viper.GetString("class-dump.proto") != "" {
 					if err := o.DumpProtocol(viper.GetString("class-dump.proto")); err != nil {
+						img.ClearMachoCache() // cleanup before error return
+						m = nil
+						o = nil
 						return fmt.Errorf("failed to dump protocol '%s' from dylib '%s': %v", viper.GetString("class-dump.proto"), filepath.Base(img.Name), err)
 					}
 				}
 
 				if viper.GetString("class-dump.cat") != "" {
 					if err := o.DumpCategory(viper.GetString("class-dump.cat")); err != nil {
+						img.ClearMachoCache() // cleanup before error return
+						m = nil
+						o = nil
 						return fmt.Errorf("failed to dump category '%s' from dylib '%s': %v", viper.GetString("class-dump.cat"), filepath.Base(img.Name), err)
 					}
 				}
 
 				if doDump {
 					if err := o.Dump(); err != nil {
+						img.ClearMachoCache() // cleanup before error return
+						m = nil
+						o = nil
 						return fmt.Errorf("failed to dump dylib '%s': %v", filepath.Base(img.Name), err)
 					}
+				}
+
+				// Cleanup after processing each image to free memory
+				if err := img.ClearMachoCache(); err != nil {
+					log.Warnf("Failed to clear macho cache for '%s': %v", filepath.Base(img.Name), err)
+				}
+				m = nil
+				o = nil
+
+				// Force garbage collection every 10 images to prevent OOM
+				if (idx+1)%10 == 0 {
+					runtime.GC()
+					log.Debugf("Processed %d/%d images (GC triggered)", idx+1, len(images))
 				}
 			}
 		}
